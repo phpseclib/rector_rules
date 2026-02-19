@@ -37,7 +37,7 @@ final class HandleFileX509Imports extends AbstractRector
     'loadCRL'  => ['phpseclib4\File\CRL', 'loadCRL'],
     'loadSPKAC'=> ['phpseclib4\File\CRL', 'loadCRL'],
     'setPrivateKey'=> ['phpseclib4\File\CRL', 'loadCRL'], // Set to CRL per default
-    // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'new CSR($privKey->getPublicKey())'],
+    // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'CSR($privKey->getPublicKey())'],
   ];
 
   public function getNodeTypes(): array
@@ -114,11 +114,19 @@ final class HandleFileX509Imports extends AbstractRector
         $args[0]->value = $wrappedExpr;
       }
 
-      return new StaticCall(
+      $staticCall = new StaticCall(
         new Name($shortClass),
         $targetMethod,
         $args
       );
+
+      if ($methodName === 'setPrivateKey') {
+        return new Assign(
+          new Variable('spkac'),
+          $staticCall
+        );
+      }
+      return $staticCall;
     }
 
     return null;
