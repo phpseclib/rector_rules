@@ -9,31 +9,35 @@ use Rector\Rector\AbstractRector;
 use PhpParser\BuilderFactory;
 use PhpParser\NodeTraverser;
 use PhpParser\Node;
-use PhpParser\Node\Stmt\Nop;
-
 use PhpParser\Node\Name;
+use PhpParser\Node\Name\FullyQualified;
+use PhpParser\Node\Identifier;
+
+use PhpParser\Node\Stmt\Nop;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\Node\Stmt\UseUse;
-
 use PhpParser\Node\Stmt\Expression;
+
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
-use PhpParser\Node\Name\FullyQualified;
 
 final class HandleFileX509Imports extends AbstractRector
 {
   // Collected varnames that refer to phpseclib3\File\X509
   private array $x509Vars = [];
   private array $usedImports = [];
+  private bool $isCSR = false;
 
   private const METHOD_TO_CLASS = [
     'loadX509' => ['phpseclib4\File\X509', 'load'],
     'loadCSR'  => ['phpseclib4\File\CSR', 'loadCSR'],
     'loadCRL'  => ['phpseclib4\File\CRL', 'loadCRL'],
-    'loadSPKAC'=> ['phpseclib4\File\CRL', 'loadCRL']
+    'loadSPKAC'=> ['phpseclib4\File\CRL', 'loadCRL'],
+    'setPrivateKey'=> ['phpseclib4\File\CRL', 'loadCRL'], // Set to CRL per default
+    // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'new CSR($privKey->getPublicKey())'],
   ];
 
   public function getNodeTypes(): array
@@ -80,20 +84,40 @@ final class HandleFileX509Imports extends AbstractRector
       }
 
       $methodName = $this->getName($node->name);
+
+      // check for setPrivateKey
+      // setChallenge() or signSPKAC() is a CRL import
+      if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
+        $this->isCSR = true;
+      }
       if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
         return null;
       }
 
       [$targetClass, $targetMethod] = self::METHOD_TO_CLASS[$methodName];
+
       $this->usedImports[(string) $targetClass] = true;
 
       $parts = explode('\\', $targetClass);
       $shortClass = end($parts);
 
+      // add ->getPublicKey() to args for setPrivateKey
+      $args = $node->args;
+      if ($methodName === 'setPrivateKey' && isset($args[0])) {
+        $originalExpr = $args[0]->value;
+
+        $wrappedExpr = new MethodCall(
+            $originalExpr,
+            new Identifier('getPublicKey')
+        );
+
+        $args[0]->value = $wrappedExpr;
+      }
+
       return new StaticCall(
         new Name($shortClass),
         $targetMethod,
-        $node->args
+        $args
       );
     }
 
