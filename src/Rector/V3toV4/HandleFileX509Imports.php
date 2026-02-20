@@ -6,7 +6,6 @@ namespace phpseclib\rectorRules\Rector\V3toV4;
 
 use Rector\Rector\AbstractRector;
 
-use PhpParser\BuilderFactory;
 use PhpParser\NodeTraverser;
 use PhpParser\Node;
 use PhpParser\Node\Name;
@@ -76,60 +75,65 @@ final class HandleFileX509Imports extends AbstractRector
       return null;
     }
 
-    // Refactor method calls on collected vars
-    if ($node instanceof MethodCall && $node->var instanceof Variable) {
-      $varName = $this->getName($node->var);
-      if ($varName === null || ! isset($this->x509Vars[$varName])) {
-        return null;
-      }
-
-      $methodName = $this->getName($node->name);
-
-      // check for setPrivateKey
-      // setChallenge() or signSPKAC() is a CRL import
-      if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
-        $this->isCSR = true;
-      }
-      if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
-        return null;
-      }
-
-      [$targetClass, $targetMethod] = self::METHOD_TO_CLASS[$methodName];
-
-      $this->usedImports[(string) $targetClass] = true;
-
-      $parts = explode('\\', $targetClass);
-      $shortClass = end($parts);
-
-      // add ->getPublicKey() to args for setPrivateKey
-      $args = $node->args;
-      if ($methodName === 'setPrivateKey' && isset($args[0])) {
-        $originalExpr = $args[0]->value;
-
-        $wrappedExpr = new MethodCall(
-            $originalExpr,
-            new Identifier('getPublicKey')
-        );
-
-        $args[0]->value = $wrappedExpr;
-      }
-
-      $staticCall = new StaticCall(
-        new Name($shortClass),
-        $targetMethod,
-        $args
-      );
-
-      if ($methodName === 'setPrivateKey') {
-        return new Assign(
-          new Variable('spkac'),
-          $staticCall
-        );
-      }
-      return $staticCall;
+    if (!$node instanceof MethodCall) {
+      return null;
     }
 
-    return null;
+    if (!$node->var instanceof Variable) {
+      return null;
+    }
+
+    // Refactor method calls on collected vars
+    $varName = $this->getName($node->var);
+    if ($varName === null || ! isset($this->x509Vars[$varName])) {
+      return null;
+    }
+    // varName = x509
+
+    $methodName = $this->getName($node->name);
+
+    // check for setPrivateKey
+    // setChallenge() or signSPKAC() is a CRL import
+    if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
+      $this->isCSR = true;
+    }
+    if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
+      return null;
+    }
+
+    [$targetClass, $targetMethod] = self::METHOD_TO_CLASS[$methodName];
+
+    $this->usedImports[(string) $targetClass] = true;
+
+    $parts = explode('\\', $targetClass);
+    $shortClass = end($parts);
+
+    // add ->getPublicKey() to args for setPrivateKey
+    $args = $node->args;
+    if ($methodName === 'setPrivateKey' && isset($args[0])) {
+      $originalExpr = $args[0]->value;
+
+      $wrappedExpr = new MethodCall(
+          $originalExpr,
+          new Identifier('getPublicKey')
+      );
+
+      $args[0]->value = $wrappedExpr;
+    }
+
+    $staticCall = new StaticCall(
+      new Name($shortClass),
+      $targetMethod,
+      $args
+    );
+
+    if ($methodName === 'setPrivateKey') {
+      return new Assign(
+        new Variable('spkac'),
+        $staticCall
+      );
+    }
+    return $staticCall;
   }
 
 
@@ -141,7 +145,7 @@ final class HandleFileX509Imports extends AbstractRector
     $useNodes = [];
 
     // Add only valid imports
-    foreach ($this->usedImports as $className => $_) {
+    foreach (array_keys($this->usedImports) as $className) {
       $useNode = new Use_([
         new UseUse(new Name($className))
       ]);
@@ -151,7 +155,6 @@ final class HandleFileX509Imports extends AbstractRector
     }
 
     $this->usedImports = [];
-    array_splice($nodes, 0, 0, $useNodes);
-    return $nodes;
+    return array_merge($useNodes, $nodes);
   }
 }
