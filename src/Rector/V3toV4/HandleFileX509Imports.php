@@ -96,7 +96,9 @@ final class HandleFileX509Imports extends AbstractRector
     // setChallenge() or signSPKAC() is a CRL import
     if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
       $this->isCSR = true;
+      // $this->usedImports[] = 'phpseclib4\File\CSR';
     }
+
     if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
       return null;
     }
@@ -128,6 +130,20 @@ final class HandleFileX509Imports extends AbstractRector
     );
 
     if ($methodName === 'setPrivateKey') {
+      // $csr = new CSR($privKey->getPublicKey());
+      if($this->isCSR) {
+        var_dump('');
+        var_dump('#### this->isCSR ####');
+        var_dump($this->isCSR);
+        return new Assign(
+          new Variable('csr'),
+          new New_(
+            new Name('CSR'),
+            $args
+          )
+        );
+      }
+      // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
       return new Assign(
         new Variable('spkac'),
         $staticCall
@@ -135,7 +151,6 @@ final class HandleFileX509Imports extends AbstractRector
     }
     return $staticCall;
   }
-
 
   public function afterTraverse(array $nodes): ?array
   {
