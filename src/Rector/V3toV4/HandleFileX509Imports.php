@@ -13,6 +13,7 @@ use PhpParser\Node\Name\FullyQualified;
 use PhpParser\Node\Identifier;
 
 use PhpParser\Node\Stmt\Nop;
+use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\Node\Stmt\UseUse;
 use PhpParser\Node\Stmt\Expression;
@@ -42,6 +43,7 @@ final class HandleFileX509Imports extends AbstractRector
   public function getNodeTypes(): array
   {
     return [
+      Class_::class,
       Use_::class,
       MethodCall::class,
       Expression::class,
@@ -50,6 +52,13 @@ final class HandleFileX509Imports extends AbstractRector
 
   public function refactor(Node $node): int|null|Node
   {
+    if($node instanceof Class_) {
+      // Reset for the new class
+      $this->isCSR = false;
+      if ($node->getAttribute(CSRAwareNodeVisitor::IS_CSR, false)) {
+        $this->isCSR = true;
+      }
+    }
     // Remove import for now. We will add the correct one later
     if ($node instanceof Use_) {
       // filter out any UseUse that matches the old class
@@ -92,13 +101,6 @@ final class HandleFileX509Imports extends AbstractRector
 
     $methodName = $this->getName($node->name);
 
-    // check for setPrivateKey
-    // setChallenge() or signSPKAC() is a CRL import
-    if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
-      $this->isCSR = true;
-      // $this->usedImports[(string) 'phpseclib4\File\CSR'] = true;
-    }
-
     if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
       return null;
     }
@@ -113,13 +115,10 @@ final class HandleFileX509Imports extends AbstractRector
     // add ->getPublicKey() to args for setPrivateKey
     $args = $node->args;
     if ($methodName === 'setPrivateKey' && isset($args[0])) {
-      $originalExpr = $args[0]->value;
-
       $wrappedExpr = new MethodCall(
-          $originalExpr,
+          $args[0]->value,
           new Identifier('getPublicKey')
       );
-
       $args[0]->value = $wrappedExpr;
     }
 
@@ -129,68 +128,25 @@ final class HandleFileX509Imports extends AbstractRector
       $args
     );
 
-    // TODO: afterTraverse
-    // if ($methodName === 'setPrivateKey') {
-    //   // $csr = new CSR($privKey->getPublicKey());
-    //   if($this->isCSR) {
-    //     return new Assign(
-    //       new Variable('csr'),
-    //       new New_(
-    //         new Name('CSR'),
-    //         $args
-    //       )
-    //     );
-    //   }
-    //   // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
-    //   return new Assign(
-    //     new Variable('spkac'),
-    //     $staticCall
-    //   );
-    // }
-    return $staticCall;
-  }
-
-  private function replaceLoadCRLCalls(Node $node)
-  {
-    if (
-      $node instanceof Expression
-      && $node->expr instanceof StaticCall
-      && $this->isName($node->expr->name, 'loadCRL')
-      && isset($node->expr->args[0])
-      && $node->expr->args[0]->value instanceOf MethodCall
-      && $this->isName($node->expr->class, 'CRL')
-      && $this->isName($node->expr->args[0]->value->var, 'privKey')
-      && $this->isName($node->expr->args[0]->value->name, 'getPublicKey')
-      ) {
-        $args = $node->expr->args;
-
-      dump_node($node);
+    if ($methodName === 'setPrivateKey') {
+      // $csr = new CSR($privKey->getPublicKey());
       if($this->isCSR) {
-        $node->expr = new Assign(
+        return new Assign(
           new Variable('csr'),
           new New_(
             new Name('CSR'),
             $args
           )
         );
-      } else {
-        return new Assign(
-          new Variable('spkac'),
-          $node->expr
-        );
       }
-
-      return $node;
+      // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
+      return new Assign(
+        new Variable('spkac'),
+        $staticCall
+      );
     }
-
-    if (property_exists($node, 'stmts') && is_array($node->stmts)) {
-      foreach ($node->stmts as $stmt) {
-        $this->replaceLoadCRLCalls($stmt);
-      }
-    }
-    return null;
+    return $staticCall;
   }
-
 
   public function afterTraverse(array $nodes): ?array
   {
@@ -213,15 +169,7 @@ final class HandleFileX509Imports extends AbstractRector
     }
     $useNodes[] = new Nop();
 
-    // Refactor setPrivateKey
-    // Replace all CRL::loadCRL(...) calls
-    // TODO: Per class
-    foreach ($nodes as $node) {
-      $this->replaceLoadCRLCalls($node);
-    }
-
     $this->usedImports = [];
-    $this->isCSR = false;
 
     return array_merge($useNodes, $nodes);
   }
