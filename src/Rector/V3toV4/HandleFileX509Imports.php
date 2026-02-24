@@ -84,11 +84,11 @@ final class HandleFileX509Imports extends AbstractRector
     }
 
     // Refactor method calls on collected vars
+    // varName = x509
     $varName = $this->getName($node->var);
     if ($varName === null || ! isset($this->x509Vars[$varName])) {
       return null;
     }
-    // varName = x509
 
     $methodName = $this->getName($node->name);
 
@@ -96,7 +96,7 @@ final class HandleFileX509Imports extends AbstractRector
     // setChallenge() or signSPKAC() is a CRL import
     if(in_array($methodName, ['setDnProp', 'signCSR','saveCSR'])) {
       $this->isCSR = true;
-      // $this->usedImports[] = 'phpseclib4\File\CSR';
+      // $this->usedImports[(string) 'phpseclib4\File\CSR'] = true;
     }
 
     if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
@@ -129,47 +129,100 @@ final class HandleFileX509Imports extends AbstractRector
       $args
     );
 
-    if ($methodName === 'setPrivateKey') {
-      // $csr = new CSR($privKey->getPublicKey());
+    // TODO: afterTraverse
+    // if ($methodName === 'setPrivateKey') {
+    //   // $csr = new CSR($privKey->getPublicKey());
+    //   if($this->isCSR) {
+    //     return new Assign(
+    //       new Variable('csr'),
+    //       new New_(
+    //         new Name('CSR'),
+    //         $args
+    //       )
+    //     );
+    //   }
+    //   // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
+    //   return new Assign(
+    //     new Variable('spkac'),
+    //     $staticCall
+    //   );
+    // }
+    return $staticCall;
+  }
+
+  private function replaceLoadCRLCalls(Node $node)
+  {
+    if (
+      $node instanceof Expression
+      && $node->expr instanceof StaticCall
+      && $this->isName($node->expr->name, 'loadCRL')
+      && isset($node->expr->args[0])
+      && $node->expr->args[0]->value instanceOf MethodCall
+      && $this->isName($node->expr->class, 'CRL')
+      && $this->isName($node->expr->args[0]->value->var, 'privKey')
+      && $this->isName($node->expr->args[0]->value->name, 'getPublicKey')
+      ) {
+        $args = $node->expr->args;
+
+      dump_node($node);
       if($this->isCSR) {
-        var_dump('');
-        var_dump('#### this->isCSR ####');
-        var_dump($this->isCSR);
-        return new Assign(
+        $node->expr = new Assign(
           new Variable('csr'),
           new New_(
             new Name('CSR'),
             $args
           )
         );
+      } else {
+        return new Assign(
+          new Variable('spkac'),
+          $node->expr
+        );
       }
-      // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
-      return new Assign(
-        new Variable('spkac'),
-        $staticCall
-      );
+
+      return $node;
     }
-    return $staticCall;
+
+    if (property_exists($node, 'stmts') && is_array($node->stmts)) {
+      foreach ($node->stmts as $stmt) {
+        $this->replaceLoadCRLCalls($stmt);
+      }
+    }
+    return null;
   }
+
 
   public function afterTraverse(array $nodes): ?array
   {
-    if(!$this->usedImports) {
+    if(!$this->usedImports || !$this->isCSR) {
       return null;
     }
     $useNodes = [];
 
     // Add only valid imports
     foreach (array_keys($this->usedImports) as $className) {
-      $useNode = new Use_([
+      $useNodes[] = new Use_([
         new UseUse(new Name($className))
       ]);
+    }
+    // No idea why I just can't add this to usedImports
+    if($this->isCSR) {
+      $useNodes[] = new Use_([
+        new UseUse(new Name('phpseclib4\File\CSR'))
+      ]);
+    }
+    $useNodes[] = new Nop();
 
-      $useNodes[] = $useNode;
-      $useNodes[] = new Nop();
+    // Refactor setPrivateKey
+    // Replace all CRL::loadCRL(...) calls
+    // TODO: Per class
+    foreach ($nodes as $node) {
+      $this->replaceLoadCRLCalls($node);
     }
 
     $this->usedImports = [];
+    $this->isCSR = false;
+
     return array_merge($useNodes, $nodes);
   }
 }
