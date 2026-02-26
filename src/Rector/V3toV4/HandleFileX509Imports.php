@@ -53,6 +53,7 @@ final class HandleFileX509Imports extends AbstractRector
   public function refactor(Node $node): int|null|Node|array
   {
     if($node instanceof FileNode) {
+      $this->usedImports = [];
       $this->usedImports = $node->getAttribute('usedImports', []);
       return null;
     }
@@ -78,7 +79,6 @@ final class HandleFileX509Imports extends AbstractRector
       // add new imports
       if (count($node->uses) === 0) {
         foreach (array_keys($this->usedImports) as $className) {
-          // Skip if already imported? You can check existing use statements here if needed
           $node->uses[] = new UseItem(new Name($className));
         }
       }
@@ -112,13 +112,11 @@ final class HandleFileX509Imports extends AbstractRector
     }
 
     $methodName = $this->getName($node->name);
-
     if ($methodName === null || ! isset(self::METHOD_TO_CLASS[$methodName])) {
       return null;
     }
 
     [$targetClass, $targetMethod] = self::METHOD_TO_CLASS[$methodName];
-
     $parts = explode('\\', $targetClass);
     $shortClass = end($parts);
 
