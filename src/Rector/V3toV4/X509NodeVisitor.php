@@ -23,6 +23,22 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
   public const IS_CSR = 'is_csr';
   private array $usedImports = [];
 
+  const METHOD_TO_CLASS = [
+    'loadX509' => 'phpseclib4\File\X509',
+    'loadCSR'  => 'phpseclib4\File\CSR',
+    'loadCRL'  => 'phpseclib4\File\CRL',
+    'loadSPKAC'=> 'phpseclib4\File\CRL',
+    'setPrivateKey'=> 'phpseclib4\File\CRL', // Set to CRL per default
+    // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'new CSR($privKey->getPublicKey())'],
+  ];
+
+  public function beforeTraverse(array $nodes): ?array
+  {
+      // Reset per-file state
+      $this->usedImports = [];
+      return null;
+  }
+
   public function enterNode(Node $node)
   {
     if (!$node instanceof FileNode) {
@@ -42,29 +58,34 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           continue;
         }
         // loop ClassMethods to get node
-        foreach ($stmt->stmts ?? [] as $innerNnode) {
-          if($innerNnode instanceof Expression && $innerNnode->expr instanceof MethodCall) {
-            $methodName = $innerNnode->expr->name->name;
+        foreach ($stmt->stmts ?? [] as $innerNode) {
+          if($innerNode instanceof Expression && $innerNode->expr instanceof MethodCall) {
+            $methodName = $innerNode->expr->name->name;
             if(in_array($methodName, ['setDNProp', 'signCSR', 'saveCSR'], true)) {
               $hasCsrMethodCall = true;
               $this->usedImports['phpseclib4\File\CSR'] = true;
-              break 2;
             }
+          }
 
+          // Track used imports for method calls
+          if($innerNode instanceof Expression
+            && $innerNode->expr instanceof Assign
+            && $innerNode->expr->expr instanceof MethodCall) {
+
+            $methodName = $innerNode->expr->expr->name->name;
             // Track used imports for method calls
-            if ($methodName !== null && isset(HandleFileX509Imports::METHOD_TO_CLASS[$methodName])) {
-                [$targetClass,] = HandleFileX509Imports::METHOD_TO_CLASS[$methodName];
-                $this->usedImports[$targetClass] = true;
+            if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
+              $targetClass = self::METHOD_TO_CLASS[$methodName];
+              $this->usedImports[$targetClass] = true;
             }
           }
         }
-        // Set the attribute on the class itself
-        if ($hasCsrMethodCall) {
-          $node->setAttribute(self::IS_CSR, true);
-        }
+      }
+      // Set isCSR attribute on Class_
+      if ($hasCsrMethodCall) {
+        $class->setAttribute(self::IS_CSR, true);
       }
     }
-
     // set usedImports on the FileNode
     $node->setAttribute('usedImports', $this->usedImports);
   }
