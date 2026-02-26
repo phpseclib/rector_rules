@@ -16,3 +16,5 @@ use phpseclib4\File\X509;
 
 $cert = X509::load('...');
 $bar = X509::load('...');
+
+?>

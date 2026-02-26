@@ -20,3 +20,5 @@ class ReadSpkacClass {
     $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
   }
 }
+
+?>
