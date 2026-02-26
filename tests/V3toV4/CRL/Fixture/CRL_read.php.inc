@@ -14,9 +14,10 @@ class ReadCRLClass {
 <?php
 
 use phpseclib4\File\CRL;
-
 class ReadCRLClass {
   public static function foo() {
     $crl = CRL::loadCRL(file_get_contents('crl.bin'));
   }
 }
+
+?>
