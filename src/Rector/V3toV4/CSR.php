@@ -19,6 +19,7 @@ final class CSR extends AbstractRector
   {
     return [
       Expression::class,
+      MethodCall::class,
     ];
   }
 
@@ -40,14 +41,13 @@ final class CSR extends AbstractRector
 
     // replace $x509->saveCSR($csr) with $csr->toString()
     if (
-      $node instanceof Expression &&
-      $node->expr instanceof MethodCall &&
-      $this->isName($node->expr->name, 'saveCSR')
+      $node instanceof MethodCall &&
+      $this->isName($node->name, 'saveCSR')
       ) {
-        return new Expression(new Methodcall(
-          $node->expr->args[0]->value,
+        return new Methodcall(
+          $node->args[0]->value,
           new Identifier('toString')
-        ));
+        );
     }
 
     return null;
