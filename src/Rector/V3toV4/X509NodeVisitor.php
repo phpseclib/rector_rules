@@ -11,6 +11,9 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\New_;
+use PhpParser\Node\Name;
+use PhpParser\Node\Name\FullyQualified;
 use Rector\PhpParser\Node\FileNode;
 
 use PhpParser\NodeVisitorAbstract;
@@ -53,37 +56,45 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
 
       // loop classes to get ClassMethods
       foreach ($class->stmts as $stmt) {
-        if (!$stmt instanceof ClassMethod) {
+        if (!$stmt instanceof ClassMethod || $stmt->stmts === null) {
           continue;
         }
         // loop ClassMethods to get node
-        foreach ($stmt->stmts ?? [] as $innerNode) {
-          // $x509->methodCall();
-          if($innerNode instanceof Expression && $innerNode->expr instanceof MethodCall) {
-            $methodName = $innerNode->expr->name->name;
+        foreach ($stmt->stmts as $innerNode) {
+          if ($innerNode instanceof Expression) {
+            $expr = $innerNode->expr ?? null;
+            if (!$expr) continue;
 
-            if ($methodName === 'setPrivateKey') {
-              $this->hasSetPrivateKey = true;
-            }
+            // $x509->methodCall();
+            if($expr instanceof MethodCall) {
+              $methodName = $expr->name->name;
 
-            if(in_array($methodName, ['setDNProp', 'signCSR', 'saveCSR'], true)) {
-              $hasCsrMethodCall = true;
+              if ($methodName === 'setPrivateKey') {
+                $this->hasSetPrivateKey = true;
+              }
+
+              if(in_array($methodName, ['setDNProp', 'signCSR', 'saveCSR'], true)) {
+                $hasCsrMethodCall = true;
+              }
+              // Track used imports for method calls
+              if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
+                $targetClass = self::METHOD_TO_CLASS[$methodName];
+                $this->usedImports[$targetClass] = true;
+              }
             }
-            // Track used imports for method calls
-            if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
-              $targetClass = self::METHOD_TO_CLASS[$methodName];
-              $this->usedImports[$targetClass] = true;
-            }
-          }
-          // $cert = $x509->methodCall();
-          if($innerNode instanceof Expression
-          && $innerNode->expr instanceof Assign
-          && $innerNode->expr->expr instanceof MethodCall) {
-            // Track used imports for method calls
-            $methodName = $innerNode->expr->expr->name->name;
-            if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
-              $targetClass = self::METHOD_TO_CLASS[$methodName];
-              $this->usedImports[$targetClass] = true;
+            // $cert = $x509->methodCall();
+            if($expr instanceof Assign
+            && $expr->expr instanceof MethodCall) {
+              // Track used imports for method calls
+              $methodName = $expr->expr->name->name;
+              if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
+                $targetClass = self::METHOD_TO_CLASS[$methodName];
+
+                // only add if not already present
+                if (!isset($this->usedImports[$targetClass])) {
+                  $this->usedImports[$targetClass] = true;
+                }
+              }
             }
           }
         }
