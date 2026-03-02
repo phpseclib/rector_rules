@@ -63,7 +63,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
         foreach ($stmt->stmts as $innerNode) {
           if ($innerNode instanceof Expression) {
             $expr = $innerNode->expr ?? null;
-            if (!$expr) continue;
+            if ($expr === null) continue;
 
             // $x509->methodCall();
             if($expr instanceof MethodCall) {

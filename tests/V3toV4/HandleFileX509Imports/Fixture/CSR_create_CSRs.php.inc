@@ -23,6 +23,7 @@ final class SomeClass
 {
   public function foo()
   {
+    $x509 = new X509();
     $csr = new CSR($privKey->getPublicKey());
     // todo: handle
     $x509->setDNProp('id-at-organizationName', 'phpseclib demo cert');
