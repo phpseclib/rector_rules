@@ -15,6 +15,7 @@ use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Name;
 use PhpParser\Node\Name\FullyQualified;
 use Rector\PhpParser\Node\FileNode;
+use Rector\PhpParser\Node\BetterNodeFinder;
 
 use PhpParser\NodeVisitorAbstract;
 use Rector\Contract\PhpParser\DecoratingNodeVisitorInterface;
@@ -24,8 +25,6 @@ use phpseclib\rectorRules\Rector\V3toV4\HandleFileX509Imports;
 final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNodeVisitorInterface
 {
   public const IS_CSR = 'is_csr';
-  private array $usedImports = [];
-  private bool $hasSetPrivateKey = false;
 
   const METHOD_TO_CLASS = [
     'loadX509' => 'phpseclib4\File\X509',
@@ -34,69 +33,45 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
     'loadSPKAC'=> 'phpseclib4\File\CRL',
   ];
 
-  public function beforeTraverse(array $nodes): ?array
-  {
-      // Reset per-file state
-      $this->usedImports = [];
-      return null;
-  }
+  public function __construct(
+    private BetterNodeFinder $betterNodeFinder
+  ) {}
 
   public function enterNode(Node $node)
   {
     if (!$node instanceof FileNode) {
       return null;
     }
+    $usedImports = [];
 
-    // loop filenodes to get classes
-    foreach ($node->stmts as $class) {
-      if (!$class instanceof Class_) {
-        continue;
-      }
+    $classes = $this->betterNodeFinder->findInstanceOf($node->stmts, Class_::class);
+    foreach ($classes as $class) {
       $hasCsrMethodCall = false;
+      $hasSetPrivateKey = false;
 
       // loop classes to get ClassMethods
-      foreach ($class->stmts as $stmt) {
-        if (!$stmt instanceof ClassMethod || $stmt->stmts === null) {
+      $methodCalls = $this->betterNodeFinder->findInstanceOf($class, MethodCall::class);
+      dump_node($methodCalls);
+      foreach ($methodCalls as $methodCall) {
+      // foreach ($class->stmts as $stmt) {
+        $methodName = $methodCall->name instanceof Node\Identifier
+          ? $methodCall->name->toString()
+          : null;
+
+        if ($methodName === null) {
           continue;
         }
-        // loop ClassMethods to get node
-        foreach ($stmt->stmts as $innerNode) {
-          if ($innerNode instanceof Expression) {
-            $expr = $innerNode->expr ?? null;
-            if ($expr === null) continue;
 
-            // $x509->methodCall();
-            if($expr instanceof MethodCall) {
-              $methodName = $expr->name->name;
+        if ($methodName === 'setPrivateKey') {
+          $hasSetPrivateKey = true;
+        }
 
-              if ($methodName === 'setPrivateKey') {
-                $this->hasSetPrivateKey = true;
-              }
+        if (in_array($methodName, ['setDNProp','signCSR','saveCSR'], true)) {
+          $hasCsrMethodCall = true;
+        }
 
-              if(in_array($methodName, ['setDNProp', 'signCSR', 'saveCSR'], true)) {
-                $hasCsrMethodCall = true;
-              }
-              // Track used imports for method calls
-              if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
-                $targetClass = self::METHOD_TO_CLASS[$methodName];
-                $this->usedImports[$targetClass] = true;
-              }
-            }
-            // $cert = $x509->methodCall();
-            if($expr instanceof Assign
-            && $expr->expr instanceof MethodCall) {
-              // Track used imports for method calls
-              $methodName = $expr->expr->name->name;
-              if ($methodName !== null && isset(self::METHOD_TO_CLASS[$methodName])) {
-                $targetClass = self::METHOD_TO_CLASS[$methodName];
-
-                // only add if not already present
-                if (!isset($this->usedImports[$targetClass])) {
-                  $this->usedImports[$targetClass] = true;
-                }
-              }
-            }
-          }
+        if (isset(self::METHOD_TO_CLASS[$methodName])) {
+          $usedImports[self::METHOD_TO_CLASS[$methodName]] = true;
         }
       }
       // Set isCSR attribute on Class_
@@ -104,16 +79,16 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
         $class->setAttribute(self::IS_CSR, true);
       }
       // setPrivateKey can be used by CSR and CRL
-      if ($this->hasSetPrivateKey) {
+      if ($hasSetPrivateKey) {
         if ($class->getAttribute(self::IS_CSR, false)) {
-          $this->usedImports['phpseclib4\File\CSR'] = true;
+          $usedImports['phpseclib4\File\CSR'] = true;
         } else {
-          $this->usedImports['phpseclib4\File\CRL'] = true;
+          $usedImports['phpseclib4\File\CRL'] = true;
         }
       }
-      $this->hasSetPrivateKey = false;
     }
     // set usedImports on the FileNode
-    $node->setAttribute('usedImports', $this->usedImports);
+    $node->setAttribute('usedImports', $usedImports);
+    return null;
   }
 }
