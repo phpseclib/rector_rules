@@ -7,7 +7,7 @@ final class SomeClass
   public function foo()
   {
     $x509 = new X509();
-    $cert = $x509->loadX509(file_get_contents('google.crt'));
+    $x509->setPrivateKey($privKey);
   }
 }
 
@@ -15,14 +15,14 @@ final class SomeClass
 -----
 <?php
 
-use phpseclib4\File\X509;
+use phpseclib4\File\CRL;
 
 final class SomeClass
 {
   public function foo()
   {
     $x509 = new X509();
-    $cert = X509::load(file_get_contents('google.crt'));
+    $spkac = CRL::loadCRL($privKey->getPublicKey());
   }
 }
 

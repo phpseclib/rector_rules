@@ -14,7 +14,6 @@ final class SomeClass
 <?php
 
 use phpseclib4\File\CSR;
-
 final class SomeClass
 {
   function foo()

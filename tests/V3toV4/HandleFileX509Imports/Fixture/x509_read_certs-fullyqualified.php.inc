@@ -14,7 +14,6 @@ final class SomeClass
 <?php
 
 use phpseclib4\File\X509;
-
 final class SomeClass
 {
   function foo()

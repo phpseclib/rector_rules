@@ -25,3 +25,5 @@ final class SomeClass
     $crl = CRL::loadCRL(file_get_contents('crl.bin'));
   }
 }
+
+?>

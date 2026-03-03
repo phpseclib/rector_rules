@@ -25,5 +25,8 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run Rector tests
-        run: vendor/bin/phpunit tests
+      - name: Run Rector tests for 2-to-3 upgrade
+        run: vendor/bin/phpunit tests --filter V2toV3
+
+      - name: Run Rector tests for 3-to-4 upgrade
+        run: vendor/bin/phpunit tests --filter V3toV4
