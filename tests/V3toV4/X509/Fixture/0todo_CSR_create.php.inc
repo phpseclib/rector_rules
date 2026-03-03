@@ -8,8 +8,11 @@ final class SomeClass
   {
     $x509 = new X509();
     $x509->setPrivateKey($privKey);
-    // todo: handle
+    // TODO: adapt Varname
     $x509->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+
+    $csr = $x509->signCSR();
+    echo $x509->saveCSR($csr);
   }
 }
 
@@ -23,10 +26,12 @@ final class SomeClass
 {
   public function foo()
   {
-    $x509 = new X509();
     $csr = new CSR($privKey->getPublicKey());
-    // todo: handle
-    $x509->setDNProp('id-at-organizationName', 'phpseclib demo cert');
+    // TODO: adapt Varname
+    $x509->addDNProp('id-at-organizationName', 'phpseclib demo cert');
+
+    $privKey->sign($csr);
+    echo $csr->toString();
   }
 }
 

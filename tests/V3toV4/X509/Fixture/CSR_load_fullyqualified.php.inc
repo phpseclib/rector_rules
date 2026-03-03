@@ -18,7 +18,6 @@ final class SomeClass
 {
   function foo()
   {
-    $x509 = new \phpseclib3\File\X509();
     $csr = CSR::loadCSR(file_get_contents('csr.csr'));
   }
 }
