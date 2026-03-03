@@ -49,11 +49,8 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
       $hasCsrMethodCall = false;
       $hasSetPrivateKey = false;
 
-      // loop classes to get ClassMethods
       $methodCalls = $this->betterNodeFinder->findInstanceOf($class, MethodCall::class);
-      dump_node($methodCalls);
       foreach ($methodCalls as $methodCall) {
-      // foreach ($class->stmts as $stmt) {
         $methodName = $methodCall->name instanceof Node\Identifier
           ? $methodCall->name->toString()
           : null;
