@@ -28,7 +28,6 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
   const METHOD_TO_CLASS = [
     'loadX509' => 'phpseclib4\File\X509',
     'getDN' => 'phpseclib4\File\X509',
-    // 'setDNProp' => 'phpseclib4\File\X509',
     'loadCSR'  => 'phpseclib4\File\CSR',
     'loadCRL'  => 'phpseclib4\File\CRL',
     'loadSPKAC'=> 'phpseclib4\File\CRL',
@@ -64,7 +63,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           $hasSetPrivateKey = true;
         }
 
-        if (in_array($methodName, ['setDNProp','signCSR','saveCSR'], true)) {
+        if (in_array($methodName, ['loadCSR','signCSR','saveCSR'], true)) {
           $hasCsrMethodCall = true;
         }
 

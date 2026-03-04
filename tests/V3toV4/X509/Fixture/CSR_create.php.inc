@@ -8,7 +8,6 @@ final class SomeClass
   {
     $x509 = new X509();
     $x509->setPrivateKey($privKey);
-    // TODO: adapt Varname
     $x509->setDNProp('id-at-organizationName', 'phpseclib demo cert');
 
     $csr = $x509->signCSR();
@@ -27,8 +26,7 @@ final class SomeClass
   public function foo()
   {
     $csr = new CSR($privKey->getPublicKey());
-    // TODO: adapt Varname
-    $x509->addDNProp('id-at-organizationName', 'phpseclib demo cert');
+    $csr->addDNProp('id-at-organizationName', 'phpseclib demo cert');
 
     $privKey->sign($csr);
     echo $csr->toString();
