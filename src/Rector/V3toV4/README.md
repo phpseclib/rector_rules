@@ -1,16 +1,21 @@
 # Rules for v3 to v4 Rector
 
-These are the rules, used for the phpseclib `v3` to phpseclib `v4` upgrade.
+The Rector Set for the phpseclib `v3` to phpseclib `v4` upgrade includes
+a [Node Visitor](https://getrector.com/documentation/creating-node-visitor) and one custom rule, called X509.
 
-## Handle File Imports
+## X509 Node Visitor
+
+With a NodeVisitor, nodes can be decorated with attributes before being used by one or more rules.
 
 In `v3` there is only `phpseclib3\File\X509` for all available certs. `v4` seperates them to
-`phpseclib4\File\X509`, `phpseclib4\File\CSR` and `phpseclib4\File\CRL`. This Rector rule handles the different imports.
+`phpseclib4\File\X509`, `phpseclib4\File\CSR` and `phpseclib4\File\CRL`.
 
-This rule runs *before* all other rules.
-It refactors the static method and it adds or replaces the needed `use` statement at the end.
+X509NodeVisitor is used in the X509 rule to analyze phpseclib X.509-related method calls and determine which phpseclib4 classes should be imported.
+
 
 ## X.509
+
+### Static calls
 
 In `v4` parsing is moved to static call and there is no need to instantiate the object.
 
