@@ -95,4 +95,4 @@ B. `skip_rule_test_fixture.php.inc` - The Code Should Be Skipped
 
 ## Rules
 
-Details of the rules are in separate Readme files for [phpseclib v2.0 to phpseclib v3.0](./src/Rector/V2toV3/README.md) and [phpseclib v3.0 to phpseclib v4.0](./src/Rector/V2toV3/README.md).
+Details of the rules are in separate Readme files for [phpseclib v2.0 to phpseclib v3.0](./src/Rector/V2toV3/README.md) and [phpseclib v3.0 to phpseclib v4.0](./src/Rector/V3toV4/README.md).
