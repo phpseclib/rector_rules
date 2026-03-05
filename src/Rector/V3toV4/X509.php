@@ -28,7 +28,6 @@ final class X509 extends AbstractRector
 {
   // Collected varnames that refer to phpseclib3\File\X509
   private array $x509Vars = [];
-  private string $varName = '';
   private array $usedImports = [];
   private bool $isCSR = false;
 
@@ -102,7 +101,6 @@ final class X509 extends AbstractRector
     ) {
       if ($this->isNames($node->expr->expr->class, ['X509', 'phpseclib3\File\X509'])) {
         $varName = $this->getName($node->expr->var);
-        $this->varName = $node->expr->var->name;
         if ($varName !== null) {
           $this->x509Vars[$varName] = true;
         }
@@ -183,10 +181,8 @@ final class X509 extends AbstractRector
       if ($methodName === 'setPrivateKey') {
         // $csr = new CSR($privKey->getPublicKey());
         if($this->isCSR) {
-          $this->x509Vars['csr'] = true;
-          $this->varName = 'csr';
           return new Assign(
-            new Variable($this->varName),
+            new Variable('csr'),
             new New_(
               new Name('CSR'),
               $args
@@ -218,7 +214,9 @@ final class X509 extends AbstractRector
 
       case 'setDNProp':
         $node->name = new Identifier('addDNProp');
-        $node->var = new Variable($this->varName);
+        if($this->isCSR) {
+          $node->var = new Variable('csr');
+        }
         return $node;
 
       case 'saveCSR':
