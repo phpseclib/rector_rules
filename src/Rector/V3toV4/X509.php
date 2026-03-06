@@ -90,6 +90,9 @@ final class X509 extends AbstractRector
       if ($node->getAttribute(X509NodeVisitor::IS_CSR, false)) {
         $this->isCSR = true;
       }
+      if($this->isCSR) {
+        $this->x509Vars['csr'] = true;
+      }
       return null;
     }
 
