@@ -12,6 +12,10 @@ In `v3` there is only `phpseclib3\File\X509` for all available certs. `v4` seper
 
 X509NodeVisitor is used in the X509 rule to analyze phpseclib X.509-related method calls and determine which phpseclib4 classes should be imported.
 
+Additionally it collects other information, that are required for the refactor:
+Like the information, if it is `CSR` import to handle the static calls correctly and adapt the variable names.
+Also the parameter, passed to `setPrivateKey()`, since this is needed to refactor `$x509->signCSR()` to `$privKey->sign($csr)`.
+
 
 ## X.509
 

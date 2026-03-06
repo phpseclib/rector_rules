@@ -30,6 +30,7 @@ final class X509 extends AbstractRector
   private array $x509Vars = [];
   private array $usedImports = [];
   private bool $isCSR = false;
+  private $privKeyObj = '';
 
   private const METHOD_TO_CLASS = [
     'loadX509' => ['phpseclib4\File\X509', 'load'],
@@ -93,6 +94,7 @@ final class X509 extends AbstractRector
       if($this->isCSR) {
         $this->x509Vars['csr'] = true;
       }
+      $this->privKeyObj = $node->getAttribute(X509NodeVisitor::PRIV_KEY_OBJ, '');
       return null;
     }
 
@@ -132,8 +134,7 @@ final class X509 extends AbstractRector
       $this->isName($node->expr->expr->name, 'signCSR')
     ) {
       return new Expression(new Methodcall(
-        // TODO: currently privKey is hardcoded. change it so that this comes from setPrivateKey
-        new Variable('privKey'),
+        new Variable($this->privKeyObj),
         'sign',
         [new Arg($node->expr->var)]
       ));
