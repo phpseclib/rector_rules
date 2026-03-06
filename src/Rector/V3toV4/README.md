@@ -131,7 +131,8 @@ $x509->addDNProp('id-at-organizationName', 'phpseclib CA cert');
 
 #### Create cert TBD
 
-Previously you needed three X509 instances - now you just need one. If this is too difficult to do we can skip it and just make note of it in the README.md under some sort of Limitations section
+Previously you needed three X509 instances - now you just need one.
+<!-- If this is too difficult to do we can skip it and just make note of it in the README.md under some sort of Limitations section -->
 
 ```php
 $x509 = new X509();
