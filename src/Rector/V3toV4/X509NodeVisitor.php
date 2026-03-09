@@ -26,7 +26,9 @@ use phpseclib\rectorRules\Rector\V3toV4\HandleFileX509Imports;
 final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNodeVisitorInterface
 {
   public const IS_CSR = 'is_csr';
+  public const IS_X509 = 'is_x509';
   public const PRIV_KEY_OBJ = '';
+  public const PUB_KEY_OBJ = '';
 
   private const METHOD_TO_CLASS = [
     'loadX509' => 'phpseclib4\File\X509',
@@ -55,8 +57,13 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
     $classes = $this->betterNodeFinder->findInstanceOf($node->stmts, Class_::class);
     foreach ($classes as $class) {
       $hasCsrMethodCall = false;
+      $hasX509MethodCall = false;
+
       $hasSetPrivateKey = false;
+      $hasSetPublicKey = false;
+
       $privKeyObj = null;
+      $pubKeyObj = null;
 
       $methodCalls = $this->betterNodeFinder->findInstanceOf($class, MethodCall::class);
       foreach ($methodCalls as $methodCall) {
@@ -74,8 +81,20 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           }
         }
 
+        if ($methodName === 'setPublicKey') {
+          $hasSetPublicKey = true;
+          // Store the publicKey object to use it later for X509 instantiation
+          $arg = $methodCall->args[0]->value;
+          if ($arg instanceof Variable && is_string($arg->name)) {
+            $pubKeyObj = $arg->name;
+          }
+        }
+
         if (in_array($methodName, ['loadCSR','signCSR','saveCSR'], true)) {
           $hasCsrMethodCall = true;
+        }
+        if (in_array($methodName, ['setPublicKey', 'saveX509', 'setDN'], true)) {
+          $hasX509MethodCall = true;
         }
 
         if (isset(self::METHOD_TO_CLASS[$methodName])) {
@@ -86,12 +105,21 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
       if ($hasCsrMethodCall) {
         $class->setAttribute(self::IS_CSR, true);
       }
+      if ($hasX509MethodCall) {
+          $class->setAttribute(self::IS_X509, true);
+      }
+      if ($hasSetPublicKey) {
+        $class->setAttribute(self::PUB_KEY_OBJ, $pubKeyObj);
+      }
+
       // setPrivateKey can be used by CSR and CRL
       if ($hasSetPrivateKey) {
         $class->setAttribute(self::PRIV_KEY_OBJ, $privKeyObj);
 
         if ($class->getAttribute(self::IS_CSR, false)) {
           $usedImports['phpseclib4\File\CSR'] = true;
+        } elseif ($class->getAttribute(self::IS_X509, false)) {
+          $usedImports['phpseclib4\File\X509'] = true;
         } else {
           $usedImports['phpseclib4\File\CRL'] = true;
         }
