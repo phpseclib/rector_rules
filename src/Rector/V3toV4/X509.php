@@ -131,8 +131,7 @@ final class X509 extends AbstractRector
       $node->expr instanceof Assign &&
       $node->expr->expr instanceof MethodCall &&
       isset($this->x509Vars[$node->expr->expr->var->name]) &&
-      ($this->isName($node->expr->expr->name, 'signCSR') ||
-      $this->isName($node->expr->expr->name, 'signSPKAC'))
+      $this->isNames($node->expr->expr->name, ['signCSR', 'signSPKAC'])
     ) {
       return new Expression(new Methodcall(
         new Variable($this->privKeyObj),
