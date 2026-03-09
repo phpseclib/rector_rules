@@ -1,5 +1,0 @@
-<?php
-
-$csr->toString();
-
-?>

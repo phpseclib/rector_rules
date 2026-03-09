@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace phpseclib\rectorRules\Rector\V3toV4;
 
 use PhpParser\Node;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\MethodCall;
-use PhpParser\Node\Expr\New_;
+use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Name;
 use PhpParser\Node\Name\FullyQualified;
 use Rector\PhpParser\Node\FileNode;
@@ -25,9 +26,11 @@ use phpseclib\rectorRules\Rector\V3toV4\HandleFileX509Imports;
 final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNodeVisitorInterface
 {
   public const IS_CSR = 'is_csr';
+  public const PRIV_KEY_OBJ = '';
 
-  const METHOD_TO_CLASS = [
+  private const METHOD_TO_CLASS = [
     'loadX509' => 'phpseclib4\File\X509',
+    'getDN' => 'phpseclib4\File\X509',
     'loadCSR'  => 'phpseclib4\File\CSR',
     'loadCRL'  => 'phpseclib4\File\CRL',
     'loadSPKAC'=> 'phpseclib4\File\CRL',
@@ -37,7 +40,12 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
     private BetterNodeFinder $betterNodeFinder
   ) {}
 
-  public function enterNode(Node $node)
+  public function getNodeTypes(): array
+  {
+    return [FileNode::class];
+  }
+
+  public function enterNode(Node $node): ?Node
   {
     if (!$node instanceof FileNode) {
       return null;
@@ -48,22 +56,25 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
     foreach ($classes as $class) {
       $hasCsrMethodCall = false;
       $hasSetPrivateKey = false;
+      $privKeyObj = null;
 
       $methodCalls = $this->betterNodeFinder->findInstanceOf($class, MethodCall::class);
       foreach ($methodCalls as $methodCall) {
-        $methodName = $methodCall->name instanceof Node\Identifier
-          ? $methodCall->name->toString()
-          : null;
-
-        if ($methodName === null) {
+        if (!$methodCall->name instanceof Identifier) {
           continue;
         }
+        $methodName = $methodCall->name->toString();
 
         if ($methodName === 'setPrivateKey') {
           $hasSetPrivateKey = true;
+          // Store the privateKey object to use it later for signing
+          $arg = $methodCall->args[0]->value;
+          if ($arg instanceof Variable && is_string($arg->name)) {
+            $privKeyObj = $arg->name;
+          }
         }
 
-        if (in_array($methodName, ['setDNProp','signCSR','saveCSR'], true)) {
+        if (in_array($methodName, ['loadCSR','signCSR','saveCSR'], true)) {
           $hasCsrMethodCall = true;
         }
 
@@ -77,6 +88,8 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
       }
       // setPrivateKey can be used by CSR and CRL
       if ($hasSetPrivateKey) {
+        $class->setAttribute(self::PRIV_KEY_OBJ, $privKeyObj);
+
         if ($class->getAttribute(self::IS_CSR, false)) {
           $usedImports['phpseclib4\File\CSR'] = true;
         } else {

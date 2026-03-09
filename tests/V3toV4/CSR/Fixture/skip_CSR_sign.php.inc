@@ -1,5 +1,0 @@
-<?php
-
-$privKey->sign($csr);
-
-?>
