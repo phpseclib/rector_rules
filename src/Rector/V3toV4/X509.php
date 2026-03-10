@@ -99,6 +99,7 @@ final class X509 extends AbstractRector
       if ($node->getAttribute(X509NodeVisitor::IS_X509, false)) {
         $this->isX509 = true;
         $this->pubKeyObj = $node->getAttribute(X509NodeVisitor::PUB_KEY_OBJ, '');
+
         $this->issuerVar = $node->getAttribute(X509NodeVisitor::ISSUER_VAR);
         $this->subjectVar = $node->getAttribute(X509NodeVisitor::SUBJECT_VAR);
       }
@@ -249,11 +250,11 @@ final class X509 extends AbstractRector
         }
         if ($varName === $this->subjectVar) {
           $node->var = new Variable('x509');
-          $node->name = new Identifier('setIssuerDN');
+          $node->name = new Identifier('setSubjectDN');
         }
         if ($varName === $this->issuerVar) {
           $node->var = new Variable('x509');
-          $node->name = new Identifier('setSubjectDN');
+          $node->name = new Identifier('setIssuerDN');
         }
         return $node;
 

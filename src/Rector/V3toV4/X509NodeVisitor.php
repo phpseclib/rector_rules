@@ -29,8 +29,8 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
   public const IS_CSR = 'is_csr';
   public const IS_X509 = 'is_x509';
   public const IS_FIRST_X509_ASSIGNMENT = 'is_fist_x509_assignment';
-  public const PRIV_KEY_OBJ = '';
-  public const PUB_KEY_OBJ = '';
+  public const PRIV_KEY_OBJ = 'priv_key';
+  public const PUB_KEY_OBJ = 'pub_key';
   public const SUBJECT_VAR = 'subject_var';
   public const ISSUER_VAR = 'issuer_var';
 
@@ -133,9 +133,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           $x509Assignments[0]->setAttribute(self::IS_FIRST_X509_ASSIGNMENT, true);
         }
       }
-      if ($hasSetPublicKey) {
-        $class->setAttribute(self::PUB_KEY_OBJ, $pubKeyObj);
-      }
+
       if ($subjectVar !== null) {
         $class->setAttribute(self::SUBJECT_VAR, $subjectVar);
       }
@@ -154,6 +152,9 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
         } else {
           $usedImports['phpseclib4\File\CRL'] = true;
         }
+      }
+      if ($hasSetPublicKey) {
+        $class->setAttribute(self::PUB_KEY_OBJ, $pubKeyObj);
       }
     }
     // set usedImports on the FileNode
