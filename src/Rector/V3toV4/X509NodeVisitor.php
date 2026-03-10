@@ -11,6 +11,7 @@ use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Expression;
 use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Name;
@@ -27,6 +28,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
 {
   public const IS_CSR = 'is_csr';
   public const IS_X509 = 'is_x509';
+  public const IS_FIRST_X509_ASSIGNMENT = 'is_fist_x509_assignment';
   public const PRIV_KEY_OBJ = '';
   public const PUB_KEY_OBJ = '';
   public const SUBJECT_VAR = 'subject_var';
@@ -114,8 +116,22 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
       if ($hasCsrMethodCall) {
         $class->setAttribute(self::IS_CSR, true);
       }
+      // It is a x509 class
       if ($hasX509MethodCall) {
         $class->setAttribute(self::IS_X509, true);
+
+        // Get the first of 3 assignments
+        $x509Assignments = $this->betterNodeFinder->find($class, function(Node $assign) {
+          return $assign instanceof Assign
+            && $assign->expr instanceof New_
+            && in_array($assign->expr->class->toString(), ['X509', 'phpseclib3\File\X509'], true);
+        });
+
+        // If we have see exactly 3 assignments, they are for sure subject, issuer and x509
+        if (count($x509Assignments) === 3) {
+          // Set attribute on Assignment
+          $x509Assignments[0]->setAttribute(self::IS_FIRST_X509_ASSIGNMENT, true);
+        }
       }
       if ($hasSetPublicKey) {
         $class->setAttribute(self::PUB_KEY_OBJ, $pubKeyObj);
