@@ -29,6 +29,8 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
   public const IS_X509 = 'is_x509';
   public const PRIV_KEY_OBJ = '';
   public const PUB_KEY_OBJ = '';
+  public const SUBJECT_VAR = 'subject_var';
+  public const ISSUER_VAR = 'issuer_var';
 
   private const METHOD_TO_CLASS = [
     'loadX509' => 'phpseclib4\File\X509',
@@ -65,12 +67,17 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
       $privKeyObj = null;
       $pubKeyObj = null;
 
+      $issuerVar = null;
+      $subjectVar = null;
+
       $methodCalls = $this->betterNodeFinder->findInstanceOf($class, MethodCall::class);
       foreach ($methodCalls as $methodCall) {
         if (!$methodCall->name instanceof Identifier) {
           continue;
         }
         $methodName = $methodCall->name->toString();
+
+        $varName = is_string($methodCall->var->name) ? $methodCall->var->name : null;
 
         if ($methodName === 'setPrivateKey') {
           $hasSetPrivateKey = true;
@@ -79,6 +86,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           if ($arg instanceof Variable && is_string($arg->name)) {
             $privKeyObj = $arg->name;
           }
+          $issuerVar = $varName;
         }
 
         if ($methodName === 'setPublicKey') {
@@ -88,6 +96,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
           if ($arg instanceof Variable && is_string($arg->name)) {
             $pubKeyObj = $arg->name;
           }
+          $subjectVar = $varName;
         }
 
         if (in_array($methodName, ['loadCSR','signCSR','saveCSR'], true)) {
@@ -106,10 +115,16 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
         $class->setAttribute(self::IS_CSR, true);
       }
       if ($hasX509MethodCall) {
-          $class->setAttribute(self::IS_X509, true);
+        $class->setAttribute(self::IS_X509, true);
       }
       if ($hasSetPublicKey) {
         $class->setAttribute(self::PUB_KEY_OBJ, $pubKeyObj);
+      }
+      if ($subjectVar !== null) {
+        $class->setAttribute(self::SUBJECT_VAR, $subjectVar);
+      }
+      if ($issuerVar !== null) {
+        $class->setAttribute(self::ISSUER_VAR, $issuerVar);
       }
 
       // setPrivateKey can be used by CSR and CRL

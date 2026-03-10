@@ -30,7 +30,11 @@ final class X509 extends AbstractRector
   private array $x509Vars = [];
   private array $usedImports = [];
   private bool $isCSR = false;
+  private bool $isX509 = false;
   private $privKeyObj = '';
+  private $pubKeyObj = '';
+  private ?string $subjectVar = null;
+  private ?string $issuerVar = null;
 
   private const METHOD_TO_CLASS = [
     'loadX509' => ['phpseclib4\File\X509', 'load'],
@@ -88,12 +92,22 @@ final class X509 extends AbstractRector
     if($node instanceof Class_) {
       // A file can have several classes, so reset for the new class
       $this->isCSR = false;
+      $this->isX509 = false;
+      $this->subjectVar = null;
+      $this->issuerVar = null;
+
+      if ($node->getAttribute(X509NodeVisitor::IS_X509, false)) {
+        $this->isX509 = true;
+        $this->pubKeyObj = $node->getAttribute(X509NodeVisitor::PUB_KEY_OBJ, '');
+        $this->issuerVar = $node->getAttribute(X509NodeVisitor::ISSUER_VAR);
+        $this->subjectVar = $node->getAttribute(X509NodeVisitor::SUBJECT_VAR);
+      }
+
       if ($node->getAttribute(X509NodeVisitor::IS_CSR, false)) {
         $this->isCSR = true;
-      }
-      if($this->isCSR) {
         $this->x509Vars['csr'] = true;
       }
+
       $this->privKeyObj = $node->getAttribute(X509NodeVisitor::PRIV_KEY_OBJ, '');
       return null;
     }
@@ -109,6 +123,21 @@ final class X509 extends AbstractRector
         if ($varName !== null) {
           $this->x509Vars[$varName] = true;
         }
+
+        if ($this->isX509) {
+          if($varName !== $this->subjectVar && $varName !== $this->issuerVar) {
+            return new Expression(
+              new Assign(
+                new Variable($varName),
+                new New_(
+                  new Name('X509'),
+                  [new Arg(new Variable($this->pubKeyObj))]
+                )
+              )
+            );
+          }
+        }
+
         return NodeTraverser::REMOVE_NODE;
       }
       return null;
@@ -140,6 +169,20 @@ final class X509 extends AbstractRector
       ));
     }
 
+    // Remove setPublicKey() and setPrivateKey() for X509
+    if (
+      $this->isX509 &&
+      $node instanceof Expression &&
+      $node->expr instanceof MethodCall
+    ) {
+      $methodCall = $node->expr;
+      if (!$methodCall->var instanceof Variable) {
+        return null;
+      }
+      if($this->isNames($methodCall->name, ['setPublicKey', 'setPrivateKey'])) {
+        return NodeTraverser::REMOVE_NODE;
+      }
+    }
 
     if (!$node instanceof MethodCall) {
       return null;
@@ -203,6 +246,18 @@ final class X509 extends AbstractRector
     }
 
     switch ($methodName) {
+      case 'setDN':
+        if (!$this->isX509) {
+          return null;
+        }
+        if ($varName === $this->subjectVar) {
+          $node->name = new Identifier('setIssuerDN');
+        }
+        if ($varName === $this->issuerVar) {
+          $node->name = new Identifier('setSubjectDN');
+        }
+        return $node;
+
       case 'getDN':
         $node->name = new Identifier('getSubjectDN');
         // Add X509::DN_ARRAY only if no argument present
