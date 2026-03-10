@@ -284,6 +284,12 @@ final class X509 extends AbstractRector
           new Identifier('toString')
         );
 
+      case 'saveX509':
+        return new Methodcall(
+          $node->var,
+          new Identifier('toString')
+      );
+
       case 'setChallenge':
         $node->var = new Variable('spkac');
         return $node;
