@@ -124,6 +124,7 @@ final class X509 extends AbstractRector
         if ($varName !== null) {
           $this->x509Vars[$varName] = true;
         }
+
         if ($this->isX509 && $node->expr->getAttribute(X509NodeVisitor::IS_FIRST_X509_ASSIGNMENT, false)) {
           return new Expression(
             new Assign(
@@ -167,18 +168,35 @@ final class X509 extends AbstractRector
       ));
     }
 
-    // Remove setPublicKey() and setPrivateKey() for X509
-    if (
-      $this->isX509 &&
-      $node instanceof Expression &&
-      $node->expr instanceof MethodCall
-    ) {
-      $methodCall = $node->expr;
-      if (!$methodCall->var instanceof Variable) {
-        return null;
+    // Handle X509
+    if($this->isX509) {
+      // $result = $x509->sign($issuer, $subject) to $privKey->sign($x509)
+      if (
+        $node instanceof Expression &&
+        $node->expr instanceof Assign &&
+        $node->expr->expr instanceof MethodCall &&
+        isset($this->x509Vars[$node->expr->expr->var->name]) &&
+        $this->isName($node->expr->expr->name, 'sign')
+      ) {
+        return new Expression(new Methodcall(
+          new Variable($this->privKeyObj),
+          'sign',
+          [new Arg($node->expr->expr->var)]
+        ));
       }
-      if($this->isNames($methodCall->name, ['setPublicKey', 'setPrivateKey'])) {
-        return NodeTraverser::REMOVE_NODE;
+
+      // Remove setPublicKey() and setPrivateKey() for X509
+      if (
+        $node instanceof Expression &&
+        $node->expr instanceof MethodCall
+      ) {
+        $methodCall = $node->expr;
+        if (!$methodCall->var instanceof Variable) {
+          return null;
+        }
+        if($this->isNames($methodCall->name, ['setPublicKey', 'setPrivateKey'])) {
+          return NodeTraverser::REMOVE_NODE;
+        }
       }
     }
 
