@@ -74,6 +74,15 @@ final class X509 extends AbstractRector
     }));
   }
 
+  public function reset() {
+    $this->isCSR = false;
+    $this->isX509 = false;
+    $this->subjectVar = null;
+    $this->issuerVar = null;
+    $this->privKeyObj = '';
+    $this->pubKeyObj = '';
+  }
+
   public function refactor(Node $node): int|null|Node
   {
     if($node instanceof FileNode) {
@@ -91,10 +100,7 @@ final class X509 extends AbstractRector
 
     if($node instanceof Class_) {
       // A file can have several classes, so reset for the new class
-      $this->isCSR = false;
-      $this->isX509 = false;
-      $this->subjectVar = null;
-      $this->issuerVar = null;
+      $this->reset();
 
       if ($node->getAttribute(X509NodeVisitor::IS_X509, false)) {
         $this->isX509 = true;
