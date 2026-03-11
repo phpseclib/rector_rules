@@ -1,4 +1,4 @@
-name: phpseclib3 Tests
+name: Rector rules Tests
 
 on: [push]
 
