@@ -21,7 +21,6 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
 use Rector\PhpParser\Node\FileNode;
 
-use Rector\PhpParser\Node\BetterNodeFinder;
 use Rector\Rector\AbstractRector;
 
 final class X509 extends AbstractRector
@@ -31,11 +30,12 @@ final class X509 extends AbstractRector
   private array $usedImports = [];
   private bool $isCSR = false;
   private bool $isX509 = false;
-  private $privKeyObj = '';
-  private $pubKeyObj = '';
+  private string $privKeyObj = '';
+  private string $pubKeyObj = '';
   private ?string $subjectVar = null;
   private ?string $issuerVar = null;
 
+  // targetClass, targetMethod
   private const METHOD_TO_CLASS = [
     'loadX509' => ['phpseclib4\File\X509', 'load'],
     'loadCSR'  => ['phpseclib4\File\CSR', 'loadCSR'],
@@ -44,10 +44,6 @@ final class X509 extends AbstractRector
     'setPrivateKey'=> ['phpseclib4\File\CRL', 'loadCRL'], // Set to CRL per default
     // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'new CSR($privKey->getPublicKey())'],
   ];
-
-  public function __construct(
-    private BetterNodeFinder $betterNodeFinder
-  ) {}
 
   public function getNodeTypes(): array
   {
@@ -150,14 +146,23 @@ final class X509 extends AbstractRector
 
     // Delete validateDate()
     // This is handled by validateSignature() now
-    $validateDateCalls = $this->betterNodeFinder->find($node, function(Node $n) {
-      return $n instanceof MethodCall
-        && $n->var instanceof Variable
-        && isset($this->x509Vars[$n->var->name])
-        && $this->isName($n->name, 'validateDate');
-    });
-    foreach ($validateDateCalls as $call) {
-      return NodeTraverser::REMOVE_NODE;
+    if ($node instanceof Expression) {
+      $expr = $node->expr;
+      if ($expr instanceof MethodCall) {
+        $call = $expr;
+      } elseif ($expr instanceof Assign && $expr->expr instanceof MethodCall) {
+        $call = $expr->expr;
+      } else {
+        return null;
+      }
+
+      if (
+        $call->var instanceof Variable &&
+        isset($this->x509Vars[$this->getName($call->var)]) &&
+        $this->isName($call->name, 'validateDate')
+      ) {
+        return NodeTraverser::REMOVE_NODE;
+      }
     }
 
     if (
