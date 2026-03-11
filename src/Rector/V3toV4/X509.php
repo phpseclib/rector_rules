@@ -80,6 +80,14 @@ final class X509 extends AbstractRector
     return null;
   }
 
+  private function wrapPrivateKeyArg(array $args): array
+  {
+    if (isset($args[0])) {
+      $args[0]->value = new MethodCall($args[0]->value, new Identifier('getPublicKey'));
+    }
+    return $args;
+  }
+
   private function reset() {
     $this->isCSR = false;
     $this->isX509 = false;
@@ -234,44 +242,28 @@ final class X509 extends AbstractRector
       return null;
     }
 
-    if(isset(self::METHOD_TO_CLASS[$methodName])) {
+    if (isset(self::METHOD_TO_CLASS[$methodName])) {
       [$targetClass, $targetMethod] = self::METHOD_TO_CLASS[$methodName];
       $parts = explode('\\', $targetClass);
       $shortClass = end($parts);
 
-      // add ->getPublicKey() to args for setPrivateKey
-      $args = $node->args;
-      if ($methodName === 'setPrivateKey' && isset($args[0])) {
-        $wrappedExpr = new MethodCall(
-            $args[0]->value,
-            new Identifier('getPublicKey')
-        );
-        $args[0]->value = $wrappedExpr;
-      }
-      $staticCall = new StaticCall(
-        new Name($shortClass),
-        $targetMethod,
-        $args
-      );
-
       if ($methodName === 'setPrivateKey') {
-        // $csr = new CSR($privKey->getPublicKey());
-        if($this->isCSR) {
+        $args = $this->wrapPrivateKeyArg($node->args);
+
+        if ($this->isCSR) {
           return new Assign(
             new Variable('csr'),
-            new New_(
-              new Name('CSR'),
-              $args
-            )
+            new New_(new Name('CSR'), $args)
           );
         }
-        // $spkac = CRL::loadCRL(file_get_contents('spkac.txt'));
+
         return new Assign(
           new Variable('spkac'),
-          $staticCall
+          new StaticCall(new Name($shortClass), $targetMethod, $args)
         );
       }
-      return $staticCall;
+
+      return new StaticCall(new Name($shortClass), $targetMethod, $node->args);
     }
 
     switch ($methodName) {
