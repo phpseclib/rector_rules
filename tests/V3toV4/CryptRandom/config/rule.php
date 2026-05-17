@@ -3,8 +3,7 @@
 declare(strict_types=1);
 
 use Rector\Config\RectorConfig;
-
-use phpseclib\rectorRules\Rector\V3toV4\X509;
+use phpseclib\rectorRules\Rector\V3toV4\CryptRandom;
 
 return RectorConfig::configure()
-  ->withRules([X509::class]);
+  ->withRules([CryptRandom::class]);

@@ -18,6 +18,6 @@ final class SomeClass
 {
   function foo()
   {
-    $crl = CRL::loadCRL(file_get_contents('crl.bin'));
+    $crl = CRL::load(file_get_contents('crl.bin'));
   }
 }

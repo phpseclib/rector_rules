@@ -14,13 +14,13 @@ final class SPKACSetChallenge
 ?>
 -----
 <?php
-use phpseclib4\File\CRL;
+use phpseclib4\File\SPKAC;
 
 final class SPKACSetChallenge
 {
   public function foo()
   {
-    $spkac = CRL::loadCRL($privKey->getPublicKey());
+    $spkac = new SPKAC($privKey->getPublicKey());
     $spkac->setChallenge('123456789');
   }
 }
