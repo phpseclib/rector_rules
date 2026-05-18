@@ -29,8 +29,9 @@ The rule performs the following transformations:
 - Converts instance method calls into the corresponding static calls on the appropriate phpseclib4 class.
 - Migrates calls such as:
     - `loadX509()` → `X509::load()`
-    - `loadCSR()` → `CSR::loadCSR()`
-    - `loadCRL()` → `CRL::loadCRL()`
+    - `loadCSR()` → `CSR::load()`
+    - `loadCRL()` → `CRL::load()`
+    - `loadSPKAC()` → `SPKAC::load()`
 - Rewrites API changes:
     - `getDN()` → `getSubjectDN(X509::DN_ARRAY)`
     - `setDNProp()` → `addDNProp()`
@@ -112,7 +113,7 @@ $csr = $x509->loadCSR(file_get_contents('csr.csr'));
 ```
 will be refactored to
 ```php
-$csr = \phpseclib4\File\CSR::loadCSR(file_get_contents('csr.csr'));
+$csr = \phpseclib4\File\CSR::load(file_get_contents('csr.csr'));
 ```
 
 #### Set DN Prop
@@ -159,7 +160,7 @@ $crl = $x509->loadCRL(file_get_contents('crl.bin'));
 ```
 will be refactored to
 ```php
-$crl = \phpseclib4\File\CRL::loadCRL(file_get_contents('crl.bin'));
+$crl = \phpseclib4\File\CRL::load(file_get_contents('crl.bin'));
 ```
 
 ### SPKAC
@@ -172,10 +173,10 @@ $spkac = $x509->loadSPKAC(file_get_contents('spkac.txt'));
 ```
 will be refactored to
 ```php
-$spkac = \phpseclib4\File\CRL::loadCRL(file_get_contents('spkac.txt'));
+$spkac = \phpseclib4\File\SPKAC::load(file_get_contents('spkac.txt'));
 ```
 
-#### Read cert
+#### Create SPKAC
 
 ```php
 $x509 = new X509();
@@ -185,7 +186,7 @@ $spkac = $x509->signSPKAC();
 ```
 will be refactored to
 ```php
-$spkac = \phpseclib4\File\CRL::loadCRL($privKey->getPublicKey());
+$spkac = new \phpseclib4\File\SPKAC($privKey->getPublicKey());
 $spkac->setChallenge('123456789');
 $privKey->sign($spkac);
 ```

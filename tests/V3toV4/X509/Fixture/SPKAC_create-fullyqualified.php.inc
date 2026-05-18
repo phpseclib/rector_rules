@@ -15,12 +15,12 @@ final class SomeClass
 -----
 <?php
 
-use phpseclib4\File\CRL;
+use phpseclib4\File\SPKAC;
 final class SomeClass
 {
   public function foo()
   {
-    $spkac = CRL::loadCRL($privKey->getPublicKey());
+    $spkac = new SPKAC($privKey->getPublicKey());
     $spkac->setChallenge('123456789');
     $privKey->sign($spkac);
   }

@@ -18,7 +18,7 @@ use phpseclib4\File\CSR;
 
 class SetDNPropClass {
   public static function SetDNProp() {
-    $csr = CSR::loadCSR(file_get_contents('csr.csr'));
+    $csr = CSR::load(file_get_contents('csr.csr'));
     $csr->addDNProp('id-at-organizationName', 'phpseclib CA cert');
   }
 }

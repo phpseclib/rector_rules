@@ -35,11 +35,11 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
   public const ISSUER_VAR = 'issuer_var';
 
   private const METHOD_TO_CLASS = [
-    'loadX509' => 'phpseclib4\File\X509',
-    'getDN' => 'phpseclib4\File\X509',
-    'loadCSR'  => 'phpseclib4\File\CSR',
-    'loadCRL'  => 'phpseclib4\File\CRL',
-    'loadSPKAC'=> 'phpseclib4\File\CRL',
+    'loadX509'  => 'phpseclib4\File\X509',
+    'getDN'     => 'phpseclib4\File\X509',
+    'loadCSR'   => 'phpseclib4\File\CSR',
+    'loadCRL'   => 'phpseclib4\File\CRL',
+    'loadSPKAC' => 'phpseclib4\File\SPKAC',
   ];
 
   public function __construct(
@@ -150,7 +150,7 @@ final class X509NodeVisitor extends NodeVisitorAbstract implements DecoratingNod
         } elseif ($class->getAttribute(self::IS_X509, false)) {
           $usedImports['phpseclib4\File\X509'] = true;
         } else {
-          $usedImports['phpseclib4\File\CRL'] = true;
+          $usedImports['phpseclib4\File\SPKAC'] = true;
         }
       }
       if ($hasSetPublicKey) {

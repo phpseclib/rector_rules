@@ -21,7 +21,7 @@ final class SomeClass
 {
   public function foo()
   {
-    $csr = CSR::loadCSR(file_get_contents('csr.csr'));
+    $csr = CSR::load(file_get_contents('csr.csr'));
   }
 }
 

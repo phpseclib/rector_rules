@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace phpseclib\rectorRules\Rector\V3toV4;
 
+use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
@@ -38,12 +39,20 @@ final class X509 extends AbstractRector
 
   // targetClass, targetMethod
   private const METHOD_TO_CLASS = [
-    'loadX509' => ['phpseclib4\File\X509', 'load'],
-    'loadCSR'  => ['phpseclib4\File\CSR', 'loadCSR'],
-    'loadCRL'  => ['phpseclib4\File\CRL', 'loadCRL'],
-    'loadSPKAC'=> ['phpseclib4\File\CRL', 'loadCRL'],
-    'setPrivateKey'=> ['phpseclib4\File\CRL', 'loadCRL'], // Set to CRL per default
-    // 'setPrivateKey'=> ['phpseclib4\File\CSR', 'new CSR($privKey->getPublicKey())'],
+    'loadX509'     => ['phpseclib4\File\X509',  'load'],
+    'loadCSR'      => ['phpseclib4\File\CSR',   'load'],
+    'loadCRL'      => ['phpseclib4\File\CRL',   'load'],
+    'loadSPKAC'    => ['phpseclib4\File\SPKAC', 'load'],
+    'setPrivateKey'=> ['phpseclib4\File\SPKAC', 'load'],
+  ];
+
+  // Methods that identify which phpseclib4 class to import (visitor analysis)
+  private const IMPORT_METHOD_MAP = [
+    'loadX509'  => 'phpseclib4\File\X509',
+    'getDN'     => 'phpseclib4\File\X509',
+    'loadCSR'   => 'phpseclib4\File\CSR',
+    'loadCRL'   => 'phpseclib4\File\CRL',
+    'loadSPKAC' => 'phpseclib4\File\SPKAC',
   ];
 
   public function getNodeTypes(): array
@@ -54,6 +63,112 @@ final class X509 extends AbstractRector
       MethodCall::class,
       Expression::class,
     ];
+  }
+
+  /**
+   * Performs the pre-analysis that X509NodeVisitor used to provide as a decorator.
+   * Sets attributes on Class_ nodes and populates $this->usedImports.
+   * Must run before any Class_/MethodCall refactoring takes place.
+   */
+  private function analyzeFile(FileNode $node): void
+  {
+    $this->usedImports = [];
+    $finder = new NodeFinder();
+
+    /** @var Class_[] $classes */
+    $classes = $finder->findInstanceOf($node->stmts, Class_::class);
+    foreach ($classes as $class) {
+      $hasCsrMethodCall  = false;
+      $hasX509MethodCall = false;
+      $hasSetPrivateKey  = false;
+      $hasSetPublicKey   = false;
+      $privKeyObj        = null;
+      $pubKeyObj         = null;
+      $issuerVar         = null;
+      $subjectVar        = null;
+
+      /** @var MethodCall[] $methodCalls */
+      $methodCalls = $finder->findInstanceOf($class->stmts, MethodCall::class);
+      foreach ($methodCalls as $methodCall) {
+        if (!$methodCall->name instanceof Identifier) {
+          continue;
+        }
+        $methodName = $methodCall->name->toString();
+        $varName    = ($methodCall->var instanceof Variable && is_string($methodCall->var->name))
+          ? $methodCall->var->name
+          : null;
+
+        if ($methodName === 'setPrivateKey') {
+          $hasSetPrivateKey = true;
+          $arg = $methodCall->args[0]->value ?? null;
+          if ($arg instanceof Variable && is_string($arg->name)) {
+            $privKeyObj = $arg->name;
+          }
+          $issuerVar = $varName;
+        }
+
+        if ($methodName === 'setPublicKey') {
+          $hasSetPublicKey = true;
+          $arg = $methodCall->args[0]->value ?? null;
+          if ($arg instanceof Variable && is_string($arg->name)) {
+            $pubKeyObj = $arg->name;
+          }
+          $subjectVar = $varName;
+        }
+
+        if (in_array($methodName, ['loadCSR', 'signCSR', 'saveCSR'], true)) {
+          $hasCsrMethodCall = true;
+        }
+        if (in_array($methodName, ['setPublicKey', 'saveX509', 'setDN'], true)) {
+          $hasX509MethodCall = true;
+        }
+
+        if (isset(self::IMPORT_METHOD_MAP[$methodName])) {
+          $this->usedImports[self::IMPORT_METHOD_MAP[$methodName]] = true;
+        }
+      }
+
+      if ($hasCsrMethodCall) {
+        $class->setAttribute(X509NodeVisitor::IS_CSR, true);
+      }
+
+      if ($hasX509MethodCall) {
+        $class->setAttribute(X509NodeVisitor::IS_X509, true);
+
+        $x509Assignments = $finder->find($class->stmts, function (Node $n): bool {
+          return $n instanceof Assign
+            && $n->expr instanceof New_
+            && $n->expr->class instanceof Name
+            && in_array($n->expr->class->toString(), ['X509', 'phpseclib3\File\X509'], true);
+        });
+
+        if (count($x509Assignments) === 3) {
+          $x509Assignments[0]->setAttribute(X509NodeVisitor::IS_FIRST_X509_ASSIGNMENT, true);
+        }
+      }
+
+      if ($subjectVar !== null) {
+        $class->setAttribute(X509NodeVisitor::SUBJECT_VAR, $subjectVar);
+      }
+      if ($issuerVar !== null) {
+        $class->setAttribute(X509NodeVisitor::ISSUER_VAR, $issuerVar);
+      }
+
+      if ($hasSetPrivateKey) {
+        $class->setAttribute(X509NodeVisitor::PRIV_KEY_OBJ, $privKeyObj);
+
+        if ($class->getAttribute(X509NodeVisitor::IS_CSR, false)) {
+          $this->usedImports['phpseclib4\File\CSR'] = true;
+        } elseif ($class->getAttribute(X509NodeVisitor::IS_X509, false)) {
+          $this->usedImports['phpseclib4\File\X509'] = true;
+        } else {
+          $this->usedImports['phpseclib4\File\SPKAC'] = true;
+        }
+      }
+      if ($hasSetPublicKey) {
+        $class->setAttribute(X509NodeVisitor::PUB_KEY_OBJ, $pubKeyObj);
+      }
+    }
   }
 
   private function stmtsWithoutLegacyImport($stmts) {
@@ -101,7 +216,11 @@ final class X509 extends AbstractRector
   public function refactor(Node $node): int|null|Node
   {
     if($node instanceof FileNode) {
-      $this->usedImports = $node->getAttribute('usedImports', []);
+      // Perform the pre-analysis (previously done by X509NodeVisitor) to avoid
+      // depending on the decorator mechanism, which has singleton-lifetime issues
+      // in combined PHPUnit runs.
+      $this->analyzeFile($node);
+
       // Remove old import
       $node->stmts = $this->stmtsWithoutLegacyImport($node->stmts);
 
@@ -260,7 +379,7 @@ final class X509 extends AbstractRector
 
         return new Assign(
           new Variable('spkac'),
-          new StaticCall(new Name($shortClass), $targetMethod, $args)
+          new New_(new Name($shortClass), $args)
         );
       }
 
